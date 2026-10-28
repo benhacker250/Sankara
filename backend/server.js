@@ -17,7 +17,8 @@ const app = express()
 const port = Number(process.env.PORT || 3001)
 const adminEmail = process.env.ADMIN_EMAIL
 const adminPassword = process.env.ADMIN_PASSWORD
-const allowedOrigins = (process.env.FRONTEND_ORIGIN || 'http://localhost:5173').split(',').map((origin) => origin.trim())
+const configuredOrigins = (process.env.FRONTEND_ORIGIN || 'http://localhost:5173').split(',').map((origin) => origin.trim())
+const allowedOrigins = [...new Set(['https://sankara-fashion-hub3.onrender.com', ...configuredOrigins])]
 const dataFile = process.env.STORE_FILE
   ? path.resolve(process.env.STORE_FILE)
   : path.join(__dirname, 'data', 'store.json')
@@ -165,6 +166,8 @@ app.use(cors({
     callback(null, !origin || allowedOrigins.includes(origin) || localDevelopmentOrigin)
   },
   credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
 }))
 app.use(express.json({ limit: '6mb' }))
 app.use('/uploads', express.static(uploadDirectory))
