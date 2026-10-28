@@ -458,4 +458,4 @@ app.use((error, req, res, next) => {
   return res.status(500).json({ error: 'The server could not complete your request.' })
 })
 
-app.listen(port, () => console.log(`M&J Server is running on http://localhost:${port}`))
+app.listen(port, () => console.log(`https://sankara-fashion-hub1.onrender.com/`))
