@@ -444,7 +444,7 @@ function App() {
           </div>
         </header>
         <main>
-          {currentPage === '/' && <HomePage products={products} loading={loading} category={category} setCategory={setCategory} query={query} setQuery={setQuery} addToCart={addToCart} money={money} />}
+          {currentPage === '/' && <HomePage products={products} loading={loading} category={category} setCategory={setCategory} query={query} setQuery={setQuery} addToCart={addToCart} money={money} onNavigate={navigate} />}
           {currentPage === '/shop' && <ShopPage products={products} loading={loading} category={category} setCategory={setCategory} query={query} setQuery={setQuery} addToCart={addToCart} money={money} />}
           {currentPage === '/story' && <StoryPage onNavigate={navigate} />}
           {currentPage === '/journal' && <JournalPage onNavigate={navigate} />}

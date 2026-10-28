@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { editorialImages, getProductImage } from '../assets/images.js'
+import coverVideo from '../assets/12.mp4'
 
 const categories = ['All pieces', 'Clothing', 'Shoes', 'Bags']
 
@@ -7,8 +8,24 @@ function Arrow({ size = 16 }) {
   return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M5 12h14" /><path d="m13 6 6 6-6 6" /></svg>
 }
 
-export function HomePage({ products, loading, category, setCategory, query, setQuery, addToCart, money }) {
-  return <ShopPage products={products} loading={loading} category={category} setCategory={setCategory} query={query} setQuery={setQuery} addToCart={addToCart} money={money} isHome />
+export function HomePage({ products, loading, category, setCategory, query, setQuery, addToCart, money, onNavigate }) {
+  return <>
+    <section className="video-cover" aria-labelledby="video-cover-title">
+      <img className="video-cover-poster" src={editorialImages.hero} alt="" />
+      <video className="video-cover-background" autoPlay muted loop playsInline aria-hidden="true" poster={editorialImages.hero}>
+        <source src={coverVideo} type="video/mp4" />
+      </video>
+      <div className="video-cover-shade" />
+      <div className="video-cover-content">
+        <span className="video-cover-eyebrow">Sankara Fashion Hub</span>
+        <h1 id="video-cover-title">Dress well.<br /><em>Stay confident.</em></h1>
+        <p>Find pieces that feel like you, and make every day your own.</p>
+        <button className="button video-cover-button" onClick={() => onNavigate('/shop')}>Explore the collection <Arrow /></button>
+      </div>
+      <span className="video-cover-caption">Your style. Your story.</span>
+    </section>
+    <ShopPage products={products} loading={loading} category={category} setCategory={setCategory} query={query} setQuery={setQuery} addToCart={addToCart} money={money} isHome />
+  </>
 }
 
 export function ShopPage({ products, loading, category, setCategory, query, setQuery, addToCart, money, isHome = false }) {
