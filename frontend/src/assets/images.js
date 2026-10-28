@@ -1,6 +1,6 @@
+import { API_URL } from '../api.js'
 import coastalLook from './1.jpg'
-import adminPhoto from './benoo.png'
-import contactPoster from './13.jpg'
+import adminPhoto from './sakwee.jpg'
 import occasionLook from './2.jpg'
 import streetLook from './images.jpg'
 
@@ -12,7 +12,7 @@ export const editorialImages = {
   journalGettingReady: occasionLook,
   journalCare: streetLook,
   admin: adminPhoto,
-  contact: contactPoster,
+  contact: adminPhoto,
 }
 
 export const productImageOptions = [
@@ -23,7 +23,7 @@ export const productImageOptions = [
 
 export function getProductImage(image) {
   if (image?.startsWith('/uploads/')) {
-    return `${import.meta.env.VITE_API_URL || 'http://localhost:3001'}${image}`
+    return `${API_URL}${image}`
   }
   return productImageOptions.find((option) => option.value === image)?.src ?? productImageOptions[0].src
 }

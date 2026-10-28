@@ -17,8 +17,15 @@ const app = express()
 const port = Number(process.env.PORT || 3001)
 const adminEmail = process.env.ADMIN_EMAIL
 const adminPassword = process.env.ADMIN_PASSWORD
-const configuredOrigins = (process.env.FRONTEND_ORIGIN || 'http://localhost:5173').split(',').map((origin) => origin.trim())
-const allowedOrigins = [...new Set(['https://sankara-fashion-hub3.onrender.com', ...configuredOrigins])]
+const configuredOrigins = (process.env.FRONTEND_ORIGIN || 'http://localhost:5173')
+  .split(',')
+  .map((origin) => origin.trim().replace(/\/+$/, ''))
+  .filter(Boolean)
+const allowedOrigins = [...new Set([
+  'https://sankara-fashion.onrender.com',
+  'https://sankara-fashion-hub3.onrender.com',
+  ...configuredOrigins,
+])]
 const dataFile = process.env.STORE_FILE
   ? path.resolve(process.env.STORE_FILE)
   : path.join(__dirname, 'data', 'store.json')
