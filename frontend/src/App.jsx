@@ -6,7 +6,7 @@ import { AdminLoginPage, ContactPage, HomePage, JournalPage, ShopPage, StoryPage
 import './App.css'
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001'
-const categories = ['All pieces', 'Clothing', 'Shoes', 'Accessories', 'Bags']
+const categories = ['All pieces', 'Clothing', 'Shoes', 'Bags']
 const countries = countryList.getNames().sort((first, second) => first.localeCompare(second))
 const phoneCountries = getCountries()
   .map((code) => ({ code, name: countryList.getName(code), callingCode: getCountryCallingCode(code) }))
@@ -14,6 +14,12 @@ const phoneCountries = getCountries()
   .sort((first, second) => first.name.localeCompare(second.name))
 const money = (amount) =>
   `${new Intl.NumberFormat('en-RW').format(amount)} RWF`
+const formatArrivalTime = (value) =>
+  new Intl.DateTimeFormat('en-RW', {
+    dateStyle: 'medium',
+    timeStyle: 'short',
+    timeZone: 'Africa/Kigali',
+  }).format(new Date(value))
 
 async function request(path, options = {}) {
   const response = await fetch(`${API_URL}${path}`, {
@@ -68,6 +74,7 @@ function App() {
   const [query, setQuery] = useState('')
   const [cartOpen, setCartOpen] = useState(false)
   const [adminTab, setAdminTab] = useState('products')
+  const [orderArrivalTimes, setOrderArrivalTimes] = useState({})
   const [loginError, setLoginError] = useState('')
   const [notice, setNotice] = useState('')
   const [loading, setLoading] = useState(true)
@@ -346,10 +353,39 @@ function App() {
   }
 
   async function approveOrder(orderId) {
+    const arrivalTime = orderArrivalTimes[orderId]
+    if (!arrivalTime) {
+      setNotice('Choose an expected arrival date and time first.')
+      return
+    }
+
+    const arrivalAt = new Date(`${arrivalTime}:00+02:00`)
+    if (!Number.isFinite(arrivalAt.getTime())) {
+      setNotice('Choose a valid expected arrival date and time.')
+      return
+    }
+
     try {
-      await request(`/api/orders/${orderId}/approve`, { method: 'PATCH' })
+      const data = await request(`/api/orders/${orderId}/approve`, {
+        method: 'PATCH',
+        body: JSON.stringify({ arrivalAt: arrivalAt.toISOString() }),
+      })
       await loadOrders()
-      setNotice('Order approved and marked ready')
+      setNotice(data.notification.status === 'sent'
+        ? 'Order approved and customer emailed'
+        : `Order approved, but the customer email failed: ${data.notification.error}`)
+    } catch (error) {
+      setNotice(error.message)
+    }
+  }
+
+  async function resendApprovalEmail(orderId) {
+    try {
+      const data = await request(`/api/orders/${orderId}/approval-email`, { method: 'POST' })
+      await loadOrders()
+      setNotice(data.notification.status === 'sent'
+        ? 'Approval email sent to the customer'
+        : `The approval email failed: ${data.notification.error}`)
     } catch (error) {
       setNotice(error.message)
     }
@@ -366,6 +402,22 @@ function App() {
     }
   }
 
+  async function resetRecords() {
+    const confirmed = window.confirm('Reset all recorded orders and stock movement history? Products and current stock levels will remain. This cannot be undone.')
+    if (!confirmed) return
+    setBusy(true)
+    try {
+      await request('/api/admin/records', { method: 'DELETE' })
+      setOrders([])
+      setInventoryMovements([])
+      setNotice('Order and stock movement records reset')
+    } catch (error) {
+      setNotice(error.message)
+    } finally {
+      setBusy(false)
+    }
+  }
+
   function openAdmin() {
     navigate(adminAuthenticated ? '/admin/dashboard' : '/admin')
   }
@@ -373,7 +425,7 @@ function App() {
   return (
     <div className="site-shell">
       {currentPage.startsWith('/admin') ? null : <>
-        <div className="announcement"><span>order now</span><button onClick={() => navigate('/shop')}>Discover the new season <Icon name="arrow" size={14} /></button></div>
+        <div className="announcement"><span>Order now</span><button onClick={() => navigate('/shop')}>Discover the new season <Icon name="arrow" size={14} /></button></div>
         <header className="site-header">
           <button className="mobile-menu icon-button" aria-label="Open navigation" onClick={() => setMobileMenu(!mobileMenu)}><Icon name="menu" /></button>
           <button className="wordmark wordmark-button" onClick={() => navigate('/')} aria-label="Sankara Fashion Hub home"><img src="/mj-fashion-logo.svg" alt="Sankara Fashion Hub" /></button>
@@ -392,7 +444,7 @@ function App() {
           </div>
         </header>
         <main>
-          {currentPage === '/' && <HomePage onNavigate={navigate} />}
+          {currentPage === '/' && <HomePage products={products} loading={loading} category={category} setCategory={setCategory} query={query} setQuery={setQuery} addToCart={addToCart} money={money} />}
           {currentPage === '/shop' && <ShopPage products={products} loading={loading} category={category} setCategory={setCategory} query={query} setQuery={setQuery} addToCart={addToCart} money={money} />}
           {currentPage === '/story' && <StoryPage onNavigate={navigate} />}
           {currentPage === '/journal' && <JournalPage onNavigate={navigate} />}
@@ -464,9 +516,17 @@ function App() {
                 </form>
                 <div className="admin-products"><h3>All pieces <span>{products.length}</span></h3>{products.map((product) => <article className="admin-product-row" key={product.id}><img src={getProductImage(product.image)} alt="" /><div className="admin-product-name"><span>{product.category}</span><strong>{product.name}</strong></div><strong className="admin-price">{money(product.price)}</strong><button className="row-action" onClick={() => startEdit(product)} aria-label={`Edit ${product.name}`}><Icon name="edit" size={17} /></button><button className="row-action delete-action" onClick={() => deleteProduct(product)} aria-label={`Delete ${product.name}`}><Icon name="trash" size={17} /></button></article>)}</div>
               </> : adminTab === 'orders' ? <><div className="admin-title-row"><div><span className="eyebrow">A personal touch</span><h2>Order approvals</h2></div><span className="admin-count">{pendingOrders.length} awaiting you</span></div>
-                <div className="orders-list">{orders.length ? orders.map((order) => <article className="order-card" key={order.id}><div className="order-heading"><div><span className="product-category">ORDER {order.id.slice(0, 8).toUpperCase()}</span><h3>{order.customer.name}</h3><span className="order-email">{order.customer.email}</span>{order.customer.phone && <span className="order-location">{order.customer.phone}</span>}{order.customer.city && order.customer.country && <span className="order-location">{order.customer.city}, {order.customer.country}</span>}</div><span className={order.status === 'pending' ? 'status-pill' : 'status-pill approved'}>{order.status}</span></div><div className="order-lines">{order.items.map((item) => <div key={item.productId}><span>{item.name} <i>× {item.quantity}</i></span><strong>{money(item.price * item.quantity)}</strong></div>)}</div><div className="order-footer"><span>Order total</span><strong>{money(order.total)}</strong>{order.status === 'pending' && <button className="button button-dark" onClick={() => approveOrder(order.id)}>Approve order <Icon name="check" size={16} /></button>}<button className="button order-delete-button" onClick={() => deleteOrder(order)}>Delete order <Icon name="trash" size={15} /></button></div></article>) : <div className="admin-empty"><Icon name="sparkle" size={24} /><h3>All caught up.</h3><p>New orders will find their way here.</p></div>}</div>
+                <div className="orders-list">{orders.length ? orders.map((order) => <article className="order-card" key={order.id}>
+                  <div className="order-heading"><div><span className="product-category">ORDER {order.id.slice(0, 8).toUpperCase()}</span><h3>{order.customer.name}</h3><span className="order-email">{order.customer.email}</span>{order.customer.phone && <span className="order-location">{order.customer.phone}</span>}{order.customer.city && order.customer.country && <span className="order-location">{order.customer.city}, {order.customer.country}</span>}</div><span className={order.status === 'pending' ? 'status-pill' : 'status-pill approved'}>{order.status}</span></div>
+                  {order.status === 'pending' && <label className="order-arrival">Expected arrival (Kigali time)<input type="datetime-local" required value={orderArrivalTimes[order.id] || ''} onChange={(event) => setOrderArrivalTimes((current) => ({ ...current, [order.id]: event.target.value }))} /></label>}
+                  {order.arrivalAt && <p className="order-arrival-confirmed">Expected arrival: {formatArrivalTime(order.arrivalAt)} (Kigali time)</p>}
+                  {order.approvalEmail?.status === 'failed' && <div className="order-email-error" role="status"><span>Customer email failed: {order.approvalEmail.error}</span><button className="button" onClick={() => resendApprovalEmail(order.id)}>Retry email</button></div>}
+                  {order.approvalEmail?.status === 'sent' && <p className="order-email-sent">Approval email sent to {order.customer.email}</p>}
+                  <div className="order-lines">{order.items.map((item) => <div key={item.productId}><span>{item.name} <i>× {item.quantity}</i></span><strong>{money(item.price * item.quantity)}</strong></div>)}</div>
+                  <div className="order-footer"><span>Order total</span><strong>{money(order.total)}</strong>{order.status === 'pending' && <button className="button button-dark" onClick={() => approveOrder(order.id)}>Approve order <Icon name="check" size={16} /></button>}<button className="button order-delete-button" onClick={() => deleteOrder(order)}>Delete order <Icon name="trash" size={15} /></button></div>
+                </article>) : <div className="admin-empty"><Icon name="sparkle" size={24} /><h3>All caught up.</h3><p>New orders will find their way here.</p></div>}</div>
               </> : <section className="admin-report">
-                <div className="admin-title-row report-heading"><div><img className="report-print-logo" src="/mj-fashion-logo-print.svg" alt="Sankara Fashion Hub" /><span className="eyebrow">Orders &amp; inventory</span><h2>Business report</h2><span className="report-date">Generated {new Intl.DateTimeFormat('en', { dateStyle: 'long' }).format(new Date())}</span></div><button className="button button-dark report-print-button" onClick={() => window.print()}><Icon name="print" size={16} /> Print report</button></div>
+                <div className="admin-title-row report-heading"><div><img className="report-print-logo" src="/mj-fashion-logo-print.svg" alt="Sankara Fashion Hub" /><span className="eyebrow">Orders &amp; inventory</span><h2>Business report</h2><span className="report-date">Generated {new Intl.DateTimeFormat('en', { dateStyle: 'long' }).format(new Date())}</span></div><div className="report-actions"><button className="button button-dark report-print-button" onClick={() => window.print()}><Icon name="print" size={16} /> Print report</button><button className="button report-reset-button" disabled={busy} onClick={resetRecords}><Icon name="trash" size={16} /> {busy ? 'Resetting…' : 'Reset all records'}</button></div></div>
                 <div className="report-summary">
                   <article><span>Total orders</span><strong>{orders.length}</strong></article>
                   <article><span>Awaiting approval</span><strong>{pendingOrders.length}</strong></article>
@@ -491,7 +551,7 @@ function App() {
                   </form>
                   <h3 className="report-section-title">Current stock</h3>
                   <div className="report-table-wrap"><table className="report-table inventory-table"><thead><tr><th>Product</th><th>Category</th><th>Unit price</th><th>Available</th><th>Status</th></tr></thead><tbody>{products.map((product) => <tr key={product.id}><td><strong>{product.name}</strong></td><td>{product.category}</td><td>{money(product.price)}</td><td>{product.stock}</td><td>{product.stock === 0 ? 'Out of stock' : product.stock <= 5 ? 'Low stock' : 'In stock'}</td></tr>)}</tbody></table></div>
-                  <h3 className="report-section-title movement-title">Recent stock movements</h3>
+                  <h3 className="report-section-title movement-title">Stock movement history</h3>
                   {inventoryMovements.length ? <div className="report-table-wrap"><table className="report-table movement-table"><thead><tr><th>Date</th><th>Product</th><th>Movement</th><th>Quantity</th><th>Reason</th></tr></thead><tbody>{inventoryMovements.map((movement) => <tr key={movement.id}><td>{new Intl.DateTimeFormat('en', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(movement.createdAt))}</td><td>{movement.productName}</td><td>{movement.direction === 'in' ? 'Stock in' : 'Stock out'}</td><td>{movement.direction === 'in' ? '+' : '−'}{movement.quantity}</td><td>{movement.reason}</td></tr>)}</tbody></table></div> : <div className="inventory-no-movements">Stock movements will appear here. The initial stock for existing products is zero.</div>}
                 </div>
               </section>}

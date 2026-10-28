@@ -1,5 +1,6 @@
 import coastalLook from './1.jpg'
 import adminPhoto from './benoo.png'
+import contactPoster from './13.jpg'
 import occasionLook from './2.jpg'
 import streetLook from './images.jpg'
 
@@ -11,6 +12,7 @@ export const editorialImages = {
   journalGettingReady: occasionLook,
   journalCare: streetLook,
   admin: adminPhoto,
+  contact: contactPoster,
 }
 
 export const productImageOptions = [

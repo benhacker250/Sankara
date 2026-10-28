@@ -26,6 +26,15 @@ Checkout requires the customer's name, email, country or region, and town or
 city. The selected location is stored with the order and shown in the admin
 order approvals.
 
+When an administrator approves an order, they provide an expected arrival
+date and time in Kigali time. The backend sends the customer an approval email
+through the Gmail API. Configure `GMAIL_CLIENT_ID`, `GMAIL_CLIENT_SECRET`,
+`GMAIL_REFRESH_TOKEN`, and `GMAIL_SENDER_EMAIL` in the private `backend/.env`.
+The refresh token must grant the Gmail send scope, and the sender address must
+belong to the authorized Google account or be a verified send-as address.
+Failed emails remain visible in the order approvals and can be retried after
+the Gmail configuration is corrected.
+
 The authenticated admin studio also includes a read-only order report with
 approval and approved-revenue summaries. Admins can print the report from the
 Reports tab.

@@ -1,50 +1,25 @@
 import { useState } from 'react'
-import heroVideo from '../assets/12.mp4'
 import { editorialImages, getProductImage } from '../assets/images.js'
 
-const categories = ['All pieces', 'Clothing', 'Shoes', 'Accessories', 'Bags']
+const categories = ['All pieces', 'Clothing', 'Shoes', 'Bags']
 
 function Arrow({ size = 16 }) {
   return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M5 12h14" /><path d="m13 6 6 6-6 6" /></svg>
 }
 
-export function HomePage({ onNavigate }) {
-  return <>
-    <section className="hero" id="home">
-      <div className="hero-copy">
-        <span className="eyebrow">✳ &nbsp; The new season, considered</span>
-        <h1>Less, but<br /><em>so much</em> more.</h1>
-        <p>Thoughtful pieces. Beautifully made. A wardrobe that feels like you, in every season.</p>
-        <button className="button button-dark" onClick={() => onNavigate('/shop')}>Explore the collection <Arrow size={17} /></button>
-        <div className="hero-footnote"><span className="avatar-stack"><i>F</i><i>R</i><i>M</i></span><span>amzing goods ahead</span></div>
-      </div>
-      <div className="hero-visual">
-        <img className="hero-still" src={editorialImages.hero} alt="Model wearing an embroidered white occasion dress" />
-        <video className="hero-video" autoPlay muted loop playsInline poster={editorialImages.hero} aria-hidden="true">
-          <source src={heroVideo} type="video/mp4" />
-        </video>
-        <div className="image-caption"><span>01 / 04</span><span>Objects for everyday, forever.</span></div>
-        <div className="hero-sticker"><span>Designed<br />to be kept</span>✳</div>
-      </div>
-    </section>
-    <ValueStrip />
-    <section className="home-feature section-wrap">
-      <div><span className="eyebrow">A little less ordinary</span><h2>The pieces you’ll live in.</h2><p>Good things take up less space.<br />And stay for a lot longer.</p><button className="text-link" onClick={() => onNavigate('/shop')}>Shop the collection <Arrow /></button></div>
-      <img src={editorialImages.everyday} alt="Model in a relaxed look by the waterfront" loading="lazy" />
-    </section>
-    <Newsletter />
-  </>
+export function HomePage({ products, loading, category, setCategory, query, setQuery, addToCart, money }) {
+  return <ShopPage products={products} loading={loading} category={category} setCategory={setCategory} query={query} setQuery={setQuery} addToCart={addToCart} money={money} isHome />
 }
 
-export function ShopPage({ products, loading, category, setCategory, query, setQuery, addToCart, money }) {
+export function ShopPage({ products, loading, category, setCategory, query, setQuery, addToCart, money, isHome = false }) {
   const visibleProducts = products.filter((product) => {
     const matchesCategory = category === 'All pieces' || product.category === category
     const matchesQuery = `${product.name} ${product.category}`.toLowerCase().includes(query.toLowerCase())
     return matchesCategory && matchesQuery
   })
 
-  return <section className="collection section-wrap route-page" id="collection">
-    <div className="section-heading"><div><span className="eyebrow">A little less ordinary</span><h2>The collection.</h2></div><p>Thoughtful things to wear,<br />and wear, and wear.</p></div>
+  return <section className={`collection section-wrap route-page${isHome ? ' home-collection' : ''}`} id="collection">
+    <div className="section-heading"><div><span className="eyebrow">Welcome</span><h2>Your Styles </h2></div><p>Thoughtful things to wear,<br />and wear, and wear.</p></div>
     <div className="collection-tools">
       <div className="category-list" aria-label="Filter products by category">
         {categories.map((item) => <button key={item} className={category === item ? 'category-chip active' : 'category-chip'} onClick={() => setCategory(item)}>{item}</button>)}
@@ -100,7 +75,16 @@ export function ContactPage({ setNotice }) {
     event.currentTarget.reset()
   }
   return <section className="contact-page route-page section-wrap">
-    <div className="contact-intro"><span className="eyebrow">let race</span><h1>Let’s talk.</h1><p>Questions about a piece, an order, or just want to say hello? We’d love to hear from you.</p><a href="mailto:tuzaben0@gmail.com">tuzaben0@gmail.com <Arrow /></a><span className="contact-hours">Usually back within one working day.<br />Monday–Friday, 9am–5pm.</span></div>
+    <div className="contact-intro"><span className="eyebrow">let race</span><h1>Let’s talk.</h1><p>Questions about a piece, an order, or just want to say hello? We’d love to hear from you.</p>
+      <div className="contact-links">
+        <a href="https://www.instagram.com/sankara.dan/" target="_blank" rel="noreferrer"><span>Instagram</span><span>Sankara Dan <Arrow /></span></a>
+        <a href="https://wa.me/250781536322" target="_blank" rel="noreferrer"><span>WhatsApp</span><span>+250 781 536 322 <Arrow /></span></a>
+        <a href="mailto:danisankara0@gmail.com"><span>Email</span><span>danisankara0@gmail.com <Arrow /></span></a>
+        <a href="https://www.google.com/maps/search/?api=1&query=Kigali+City+Tower%2C+Kigali%2C+Rwanda" target="_blank" rel="noreferrer"><span>Visit</span><span>Kigali City Tower, Kigali, Rwanda <Arrow /></span></a>
+      </div>
+      <span className="contact-hours">Usually back within one working day.<br />Monday–Friday, 9am–5pm.</span>
+      <figure className="contact-poster"><img src={editorialImages.contact} alt="Sankara Fashion Hub contact information and Kigali location" /></figure>
+    </div>
     <form className="contact-form" onSubmit={submitContact}><h2>{sent ? 'Thanks for reaching out.' : 'Write us a little note.'}</h2><label>Your name<input required autoComplete="name" name="name" /></label><label>Email address<input type="email" required autoComplete="email" name="email" /></label><label>What’s on your mind?<select name="topic"><option>Something about an order</option><option>A question about a piece</option><option>A little hello</option></select></label><label>Your message<textarea required rows="5" name="message" /></label><button className="button button-dark">Send your note <Arrow /></button></form>
   </section>
 }
@@ -111,12 +95,12 @@ export function AdminLoginPage({ loginAdmin, loginError, busy, navigate }) {
       <span className="eyebrow">✧ &nbsp; </span><h1>Good to<br />see you.</h1>
       <p>Sign in to manage the collection, set prices and personally review new orders.</p>
       <form onSubmit={loginAdmin}>
-        <label>Admin email<input type="email" name="email" required autoComplete="username" defaultValue="tuzaben0@gmail.com" /></label>
+        <label>Admin email<input type="email" name="email" required autoComplete="username" /></label>
         <label>Password<input type="password" name="password" required autoComplete="current-password" autoFocus /></label>
         {loginError && <div className="form-error" role="alert">{loginError}</div>}
         <button className="button button-dark full-button" disabled={busy}>{busy ? 'Signing in…' : 'Sign in'} <Arrow /></button>
       </form>
-      <span className="admin-login-note">Only an authorized studio administrator can update the collection or approve orders.</span>
+      <span className="admin-login-note">Only an authorized  administrator can update the collection or approve orders.</span>
       <button className="back-store-link" onClick={() => navigate('/')}>← &nbsp; Back to your Dashboard</button>
     </div>
     <div className="admin-login-photo"><img src={editorialImages.admin} alt="Sankara Fashion Hub studio" /></div>

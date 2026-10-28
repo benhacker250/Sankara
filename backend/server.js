@@ -17,7 +17,7 @@ const app = express()
 const port = Number(process.env.PORT || 3001)
 const adminEmail = process.env.ADMIN_EMAIL
 const adminPassword = process.env.ADMIN_PASSWORD
-const allowedOrigin = process.env.FRONTEND_ORIGIN || 'http://localhost:5173'
+const allowedOrigins = (process.env.FRONTEND_ORIGIN || 'http://localhost:5173').split(',').map((origin) => origin.trim())
 const dataFile = process.env.STORE_FILE
   ? path.resolve(process.env.STORE_FILE)
   : path.join(__dirname, 'data', 'store.json')
@@ -39,7 +39,6 @@ const seedProducts = [
   { id: 'p-bag', name: 'The everyday carryall', category: 'Bags', price: 198, image: 'street-look', description: 'Room for what matters, and nothing that doesn’t.', stock: 0 },
   { id: 'p-knit', name: 'The soft-spoken knit', category: 'Clothing', price: 154, image: 'coastal-look', description: 'Responsibly sourced cotton. The kind of soft you remember.', stock: 0 },
   { id: 'p-sandal', name: 'The day-off sandal', category: 'Shoes', price: 142, image: 'street-look', description: 'Hand-finished leather, thoughtfully made for everywhere.', tag: 'Few left', stock: 0 },
-  { id: 'p-scarf', name: 'The everywhere scarf', category: 'Accessories', price: 78, image: 'coastal-look', description: 'A light layer in organic cotton. Wear it your way.', stock: 0 },
   { id: 'p-dress', name: 'The unhurried dress', category: 'Clothing', price: 188, image: 'occasion-look', description: 'An effortless shape that moves with you, day into night.', tag: 'New season', stock: 0 },
   { id: 'p-sneaker', name: 'The good-ground sneaker', category: 'Shoes', price: 136, image: 'street-look', description: 'A considered classic, grounded in comfort and made to roam.', stock: 0 },
 ]
@@ -77,7 +76,96 @@ function saveStore() {
   fs.renameSync(temporaryFile, dataFile)
 }
 
-app.use(cors({ origin: allowedOrigin, credentials: true }))
+async function gmailAccessToken() {
+  const { GMAIL_CLIENT_ID, GMAIL_CLIENT_SECRET, GMAIL_REFRESH_TOKEN } = process.env
+  if (!GMAIL_CLIENT_ID || !GMAIL_CLIENT_SECRET || !GMAIL_REFRESH_TOKEN) {
+    throw new Error('Set GMAIL_CLIENT_ID, GMAIL_CLIENT_SECRET, and GMAIL_REFRESH_TOKEN to enable approval emails.')
+  }
+
+  const response = await fetch('https://oauth2.googleapis.com/token', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({
+      client_id: GMAIL_CLIENT_ID,
+      client_secret: GMAIL_CLIENT_SECRET,
+      refresh_token: GMAIL_REFRESH_TOKEN,
+      grant_type: 'refresh_token',
+    }),
+  })
+  const result = await response.json().catch(() => ({}))
+  if (!response.ok || typeof result.access_token !== 'string') {
+    throw new Error(result.error_description || result.error || 'Google OAuth could not provide a Gmail access token.')
+  }
+  return result.access_token
+}
+
+async function sendApprovalEmail(order) {
+  const accessToken = await gmailAccessToken()
+  const senderEmail = process.env.GMAIL_SENDER_EMAIL || adminEmail
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(senderEmail)) {
+    throw new Error('Set GMAIL_SENDER_EMAIL to a valid address authorized for the configured Gmail account.')
+  }
+
+  const orderNumber = order.id.slice(0, 8).toUpperCase()
+  const arrival = new Intl.DateTimeFormat('en-RW', {
+    dateStyle: 'full',
+    timeStyle: 'short',
+    timeZone: 'Africa/Kigali',
+  }).format(new Date(order.arrivalAt))
+  const message = [
+    `From: Sankara Fashion Hub <${senderEmail}>`,
+    `To: ${order.customer.email}`,
+    `Subject: Your Sankara order ${orderNumber} is approved`,
+    'MIME-Version: 1.0',
+    'Content-Type: text/plain; charset="UTF-8"',
+    'Content-Transfer-Encoding: 8bit',
+    '',
+    `Hello ${order.customer.name},`,
+    '',
+    `Your order ${orderNumber} has been approved.`,
+    `Expected arrival: ${arrival} (Kigali time).`,
+    '',
+    'Thank you for shopping with Sankara Fashion Hub.',
+  ].join('\r\n')
+
+  const response = await fetch('https://gmail.googleapis.com/gmail/v1/users/me/messages/send', {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ raw: Buffer.from(message, 'utf8').toString('base64url') }),
+  })
+  const result = await response.json().catch(() => ({}))
+  if (!response.ok) {
+    throw new Error(result.error?.message || 'Gmail could not send the approval email.')
+  }
+  return result.id
+}
+
+async function sendAndRecordApprovalEmail(order) {
+  order.approvalEmail = { status: 'sending', updatedAt: new Date().toISOString() }
+  saveStore()
+
+  try {
+    const messageId = await sendApprovalEmail(order)
+    order.approvalEmail = { status: 'sent', messageId, sentAt: new Date().toISOString() }
+  } catch (error) {
+    order.approvalEmail = { status: 'failed', error: error.message, failedAt: new Date().toISOString() }
+    console.error(`Could not send approval email for order ${order.id}: ${error.message}`)
+  }
+
+  saveStore()
+  return order.approvalEmail
+}
+
+app.use(cors({
+  origin(origin, callback) {
+    const localDevelopmentOrigin = process.env.NODE_ENV !== 'production' && /^http:\/\/(localhost|127\.0\.0\.1):\d+$/.test(origin || '')
+    callback(null, !origin || allowedOrigins.includes(origin) || localDevelopmentOrigin)
+  },
+  credentials: true,
+}))
 app.use(express.json({ limit: '6mb' }))
 app.use('/uploads', express.static(uploadDirectory))
 
@@ -113,7 +201,7 @@ function adminOnly(req, res, next) {
 }
 
 function validProduct(body) {
-  const categories = ['Clothing', 'Shoes', 'Accessories', 'Bags']
+  const categories = ['Clothing', 'Shoes', 'Bags']
   if (typeof body.name !== 'string' || !body.name.trim() || body.name.length > 80) return 'Add a product name (80 characters maximum).'
   if (!categories.includes(body.category)) return 'Choose a valid product category.'
   if (!Number.isSafeInteger(Number(body.price)) || Number(body.price) <= 0 || Number(body.price) > 1000000000) return 'Enter a valid whole-number price in RWF.'
@@ -315,14 +403,38 @@ app.post('/api/orders', (req, res) => {
 
 app.get('/api/orders', adminOnly, (req, res) => res.json({ orders: store.orders }))
 
-app.patch('/api/orders/:id/approve', adminOnly, (req, res) => {
+app.patch('/api/orders/:id/approve', adminOnly, async (req, res) => {
   const order = store.orders.find((item) => item.id === req.params.id)
   if (!order) return res.status(404).json({ error: 'That order could not be found.' })
   if (order.status !== 'pending') return res.status(409).json({ error: 'This order has already been reviewed.' })
+  const arrivalAt = new Date(req.body?.arrivalAt)
+  if (typeof req.body?.arrivalAt !== 'string' ||
+      !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/.test(req.body.arrivalAt) ||
+      !Number.isFinite(arrivalAt.getTime())) {
+    return res.status(400).json({ error: 'Choose a valid expected arrival date and time.' })
+  }
+  if (arrivalAt.getTime() <= Date.now()) {
+    return res.status(400).json({ error: 'Expected arrival must be in the future.' })
+  }
   order.status = 'approved'
   order.approvedAt = new Date().toISOString()
+  order.arrivalAt = arrivalAt.toISOString()
   saveStore()
-  return res.json({ order })
+  const notification = await sendAndRecordApprovalEmail(order)
+  return res.json({ order, notification })
+})
+
+app.post('/api/orders/:id/approval-email', adminOnly, async (req, res) => {
+  const order = store.orders.find((item) => item.id === req.params.id)
+  if (!order) return res.status(404).json({ error: 'That order could not be found.' })
+  if (order.status !== 'approved' || !order.arrivalAt) {
+    return res.status(409).json({ error: 'Only approved orders with an arrival estimate can receive an approval email.' })
+  }
+  if (order.approvalEmail?.status === 'sent') {
+    return res.status(409).json({ error: 'The approval email has already been sent.' })
+  }
+  const notification = await sendAndRecordApprovalEmail(order)
+  return res.json({ order, notification })
 })
 
 app.delete('/api/orders/:id', adminOnly, (req, res) => {
@@ -331,6 +443,13 @@ app.delete('/api/orders/:id', adminOnly, (req, res) => {
   store.orders.splice(index, 1)
   saveStore()
   return res.status(204).end()
+})
+
+app.delete('/api/admin/records', adminOnly, (req, res) => {
+  store.orders = []
+  store.inventoryMovements = []
+  saveStore()
+  return res.json({ orders: store.orders, movements: store.inventoryMovements })
 })
 
 app.use((error, req, res, next) => {
