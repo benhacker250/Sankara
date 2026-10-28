@@ -23,6 +23,7 @@ const configuredOrigins = (process.env.FRONTEND_ORIGIN || 'http://localhost:5173
   .filter(Boolean)
 const allowedOrigins = [...new Set([
   'https://sankara-fashion.onrender.com',
+  'https://sankara-fashionhub.onrender.com',
   'https://sankara-fashion-hub3.onrender.com',
   ...configuredOrigins,
 ])]
