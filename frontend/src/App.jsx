@@ -5,7 +5,7 @@ import { getProductImage, productImageOptions } from './assets/images.js'
 import { AdminLoginPage, ContactPage, HomePage, JournalPage, ShopPage, StoryPage } from './pages/Pages.jsx'
 import './App.css'
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001'
+const API_URL = import.meta.env.VITE_API_URL || 'https://sankara-fashion-hub1.onrender.com/'
 const categories = ['All pieces', 'Clothing', 'Shoes', 'Bags']
 const countries = countryList.getNames().sort((first, second) => first.localeCompare(second))
 const phoneCountries = getCountries()
